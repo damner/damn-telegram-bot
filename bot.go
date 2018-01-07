@@ -14,6 +14,12 @@ import (
 	"github.com/tucnak/telebot"
 )
 
+const (
+	template     = "$main_obozvat"
+	messageStart = "Введи имя человека, которого ты хочешь обругать."
+	messageF     = "После /f нужно указать имя бабы."
+)
+
 type BotanMessage struct {
 	usename string
 }
@@ -39,12 +45,12 @@ func main() {
 		log.Printf("Received a message from %s [%d] with the text: %s\n", message.Sender.Username, message.Sender.ID, message.Text)
 
 		if message.Text == "/start" {
-			bot.SendMessage(message.Chat, "Введи имя человека, которого ты хочешь обругать.", nil)
+			bot.SendMessage(message.Chat, messageStart, nil)
 			continue
 		}
 
 		if message.Text == "/f" {
-			bot.SendMessage(message.Chat, "После /f нужно указать имя бабы.", nil)
+			bot.SendMessage(message.Chat, messageF, nil)
 			continue
 		}
 
@@ -82,7 +88,7 @@ func main() {
 
 func Generate(name string, isFamale bool) string {
 	values := url.Values{}
-	values.Set("template", "$main_obozvat")
+	values.Set("template", template)
 	values.Set("name", "{NAME}")
 	values.Set("sex", "m")
 
