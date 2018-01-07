@@ -22,7 +22,7 @@ var serviceUrl string
 
 func main() {
 	serviceUrl = strings.TrimRight(os.Getenv("DAMNRU_SERVICE_URL"), "/")
-	log.Println(serviceUrl)
+	log.Printf("Damn service URL: %s\n", serviceUrl)
 
 	botan1 := botan.New(os.Getenv("DAMNRU_APPMETRICA_TOKEN"))
 	ch := make(chan bool)
