@@ -26,6 +26,8 @@ type BotanMessage struct {
 
 var serviceUrl string
 
+var damnRegexp = regexp.MustCompile("\\^.")
+
 func main() {
 	serviceUrl = strings.TrimRight(os.Getenv("DAMNRU_SERVICE_URL"), "/")
 	log.Printf("Damn service URL: %s\n", serviceUrl)
@@ -110,7 +112,7 @@ func Generate(name string, isFamale bool) string {
 
 	damn := string(body)
 	damn = strings.Replace(damn, "{NAME}", name, -1)
-	damn = regexp.MustCompile("\\^.").ReplaceAllStringFunc(damn, func(m string) string {
+	damn = damnRegexp.ReplaceAllStringFunc(damn, func(m string) string {
 		return strings.ToUpper(m[1:])
 	})
 
