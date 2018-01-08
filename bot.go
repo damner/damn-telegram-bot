@@ -11,81 +11,124 @@ import (
 	"time"
 
 	"github.com/botanio/sdk/go"
-	"github.com/tucnak/telebot"
+	tb "gopkg.in/tucnak/telebot.v2"
 )
 
 const (
-	template     = "$main_obozvat"
-	messageStart = "Введи имя человека, которого ты хочешь обругать."
-	messageF     = "После /f нужно указать имя бабы."
+	template        = "$main_obozvat"
+	moreButtonText  = "Давай ещё!"
+	moreButtonAlert = "Готово"
+	messageStart    = "Введи имя человека, которого ты хочешь обругать."
+	messageF        = "После /f нужно указать имя бабы."
 )
 
 type BotanMessage struct {
 	usename string
 }
 
-var serviceUrl string
+var serviceUrl = strings.TrimRight(os.Getenv("DAMNRU_SERVICE_URL"), "/")
 
 var damnRegexp = regexp.MustCompile("\\^.")
 
+var botanCh = make(chan bool)
+
 func main() {
-	serviceUrl = strings.TrimRight(os.Getenv("DAMNRU_SERVICE_URL"), "/")
 	log.Printf("Damn service URL: %s\n", serviceUrl)
 
 	botan1 := botan.New(os.Getenv("DAMNRU_APPMETRICA_TOKEN"))
-	ch := make(chan bool)
 
-	bot, err := telebot.NewBot(os.Getenv("DAMNRU_TELEGRAM_TOKEN"))
+	bot, err := tb.NewBot(tb.Settings{
+		Token:  os.Getenv("DAMNRU_TELEGRAM_TOKEN"),
+		Poller: &tb.LongPoller{Timeout: 10 * time.Second},
+	})
+
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	messages := make(chan telebot.Message, 100)
-	bot.Listen(messages, 1*time.Second)
+	bot.Handle("/start", func(message *tb.Message) {
+		bot.Send(message.Sender, messageStart)
+	})
 
-	for message := range messages {
-		log.Printf("Received a message from %s [%d] with the text: %s\n", message.Sender.Username, message.Sender.ID, message.Text)
-
-		if message.Text == "/start" {
-			bot.SendMessage(message.Chat, messageStart, nil)
-			continue
-		}
-
-		if message.Text == "/f" {
-			bot.SendMessage(message.Chat, messageF, nil)
-			continue
-		}
-
-		originalMessage := message.Text
-		isFamale := false
-
-		if len(message.Text) >= 2 {
-			if message.Text[0:2] == "/f" {
-				message.Text = message.Text[3:]
-				isFamale = true
-			}
-		}
-
-		damn := Generate(strings.Trim(message.Text, " "), isFamale)
-		log.Println(damn)
-
-		bot.SendMessage(message.Chat, damn, &telebot.SendOptions{
-			ReplyMarkup: telebot.ReplyMarkup{
-				Selective:      true,
-				ResizeKeyboard: true,
-				CustomKeyboard: [][]string{
-					[]string{originalMessage},
-				},
-			},
-		})
-
-		botan1.TrackAsync(message.Sender.ID, BotanMessage{message.Sender.Username}, "test3", func(ans botan.Answer, err []error) {
-			log.Printf("Event [%d] %+v\n", message.Sender.ID, ans)
-			ch <- true
-		})
+	moreButton := tb.InlineButton{
+		Unique: "more",
+		Text:   moreButtonText,
 	}
 
-	<-ch
+	moreFemaleButton := tb.InlineButton{
+		Unique: "more_female",
+		Text:   moreButtonText,
+	}
+
+	bot.Handle(&moreButton, func(c *tb.Callback) {
+		damn := Generate(strings.Trim(c.Data, " "), false)
+
+		bot.Edit(c.Message, c.Message.Text)
+
+		sendDamn(bot, c.Sender, damn, moreButton, c.Data)
+
+		bot.Respond(c, &tb.CallbackResponse{
+			Text: moreButtonAlert,
+		})
+
+		logGeneratedDamn(c.Message, damn, &botan1)
+	})
+
+	bot.Handle(&moreFemaleButton, func(c *tb.Callback) {
+		damn := Generate(strings.Trim(c.Data, " "), true)
+
+		bot.Edit(c.Message, c.Message.Text)
+
+		sendDamn(bot, c.Sender, damn, moreFemaleButton, c.Data)
+
+		bot.Respond(c, &tb.CallbackResponse{
+			Text: moreButtonAlert,
+		})
+
+		logGeneratedDamn(c.Message, damn, &botan1)
+	})
+
+	bot.Handle("/f", func(message *tb.Message) {
+		if message.Payload == "" {
+			bot.Send(message.Sender, messageF)
+			return
+		}
+
+		damn := Generate(strings.Trim(message.Payload, " "), true)
+
+		sendDamn(bot, message.Sender, damn, moreFemaleButton, message.Payload)
+
+		logGeneratedDamn(message, damn, &botan1)
+	})
+
+	bot.Handle(tb.OnText, func(message *tb.Message) {
+		damn := Generate(strings.Trim(message.Text, " "), false)
+
+		sendDamn(bot, message.Sender, damn, moreButton, message.Text)
+
+		logGeneratedDamn(message, damn, &botan1)
+	})
+
+	bot.Start()
+}
+
+func sendDamn(bot *tb.Bot, sender *tb.User, damn string, button tb.InlineButton, name string) {
+	button.Data = name
+
+	bot.Send(sender, damn, &tb.ReplyMarkup{
+		InlineKeyboard: [][]tb.InlineButton{
+			[]tb.InlineButton{button},
+		},
+	})
+}
+
+func logGeneratedDamn(message *tb.Message, damn string, botan1 *botan.Botan) {
+	log.Println(damn)
+
+	botan1.TrackAsync(message.Sender.ID, BotanMessage{message.Sender.Username}, "test3", func(ans botan.Answer, err []error) {
+		log.Printf("Event [%d] %+v\n", message.Sender.ID, ans)
+		botanCh <- true
+	})
 }
 
 func Generate(name string, isFamale bool) string {
