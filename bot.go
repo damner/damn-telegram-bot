@@ -67,9 +67,7 @@ func main() {
 
 		sendDamn(bot, c.Sender, damn, moreButton, c.Data)
 
-		bot.Respond(c, &tb.CallbackResponse{
-			Text: moreButtonAlert,
-		})
+		bot.Respond(c, &tb.CallbackResponse{})
 
 		logGeneratedDamn(c.Message, damn, &botan1)
 	})
@@ -81,9 +79,7 @@ func main() {
 
 		sendDamn(bot, c.Sender, damn, moreFemaleButton, c.Data)
 
-		bot.Respond(c, &tb.CallbackResponse{
-			Text: moreButtonAlert,
-		})
+		bot.Respond(c, &tb.CallbackResponse{})
 
 		logGeneratedDamn(c.Message, damn, &botan1)
 	})
