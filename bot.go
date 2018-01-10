@@ -22,8 +22,10 @@ const (
 	messageF        = "После /f нужно указать имя бабы."
 )
 
-type BotanMessage struct {
+type BotanDamnData struct {
 	usename string
+	female bool
+	name string
 }
 
 var serviceUrl = strings.TrimRight(os.Getenv("DAMNRU_SERVICE_URL"), "/")
@@ -59,23 +61,27 @@ func main() {
 	}
 
 	bot.Handle(&moreButton, func(c *tb.Callback) {
-		damn := Generate(strings.Trim(c.Data, " "), false)
+		name := strings.Trim(c.Data, " ")
+		isFemale := false;
 
-		bot.Edit(c.Message, c.Message.Text)
-
-		logGeneratedDamn(c.Message, damn, &botan1)
+		damn := Generate(name, isFemale)
+		logGeneratedDamn(c.Message.Sender, name, isFemale, damn, &botan1)
 		sendDamn(bot, c.Sender, damn, moreButton, c.Data)
+
 		bot.Respond(c, &tb.CallbackResponse{})
+		bot.Edit(c.Message, c.Message.Text)
 	})
 
 	bot.Handle(&moreFemaleButton, func(c *tb.Callback) {
-		damn := Generate(strings.Trim(c.Data, " "), true)
+		name := strings.Trim(c.Data, " ")
+		isFemale := true
 
-		bot.Edit(c.Message, c.Message.Text)
-
-		logGeneratedDamn(c.Message, damn, &botan1)
+		damn := Generate(name, isFemale)
+		logGeneratedDamn(c.Message.Sender, name, isFemale, damn, &botan1)
 		sendDamn(bot, c.Sender, damn, moreFemaleButton, c.Data)
+
 		bot.Respond(c, &tb.CallbackResponse{})
+		bot.Edit(c.Message, c.Message.Text)
 	})
 
 	bot.Handle("/f", func(message *tb.Message) {
@@ -84,16 +90,20 @@ func main() {
 			return
 		}
 
-		damn := Generate(strings.Trim(message.Payload, " "), true)
+		name := strings.Trim(message.Payload, " ")
+		isFemale := true
 
-		logGeneratedDamn(message, damn, &botan1)
+		damn := Generate(name, isFemale)
+		logGeneratedDamn(message.Sender, name, isFemale, damn, &botan1)
 		sendDamn(bot, message.Sender, damn, moreFemaleButton, message.Payload)
 	})
 
 	bot.Handle(tb.OnText, func(message *tb.Message) {
-		damn := Generate(strings.Trim(message.Text, " "), false)
+		name := strings.Trim(message.Text, " ")
+		isFemale := false
 
-		logGeneratedDamn(message, damn, &botan1)
+		damn := Generate(name, isFemale)
+		logGeneratedDamn(message.Sender, name, isFemale, damn, &botan1)
 		sendDamn(bot, message.Sender, damn, moreButton, message.Text)
 	})
 
@@ -110,11 +120,17 @@ func sendDamn(bot *tb.Bot, sender *tb.User, damn string, button tb.InlineButton,
 	})
 }
 
-func logGeneratedDamn(message *tb.Message, damn string, botan1 *botan.Botan) {
+func logGeneratedDamn(sender *tb.User, name string, isFemale bool, damn string, botan1 *botan.Botan) {
 	log.Println(damn)
 
-	botan1.TrackAsync(message.Sender.ID, BotanMessage{message.Sender.Username}, "test3", func(ans botan.Answer, err []error) {
-		log.Printf("Event [%d] %+v\n", message.Sender.ID, ans)
+	data := BotanDamnData{
+		sender.Username,
+		isFemale,
+		name,
+	}
+
+	botan1.TrackAsync(sender.ID, data, "test4", func(ans botan.Answer, err []error) {
+		log.Printf("Event data=%+v, answer=%+v, errors=%+v\n", data, ans, err)
 	})
 }
 
