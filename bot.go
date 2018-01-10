@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -24,18 +25,32 @@ const (
 
 type BotanDamnData struct {
 	usename string
-	female bool
-	name string
+	female  bool
+	name    string
 }
 
 var serviceUrl = strings.TrimRight(os.Getenv("DAMNRU_SERVICE_URL"), "/")
 
 var damnRegexp = regexp.MustCompile("\\^.")
 
-func main() {
-	log.Printf("Damn service URL: %s\n", serviceUrl)
+var botanLogger botan.Botan
 
-	botan1 := botan.New(os.Getenv("DAMNRU_APPMETRICA_TOKEN"))
+func main() {
+	var noBotan bool
+	flag.BoolVar(&noBotan, "no-botan", false, "disable logging to AppMetrica")
+	flag.Parse()
+
+	var botanToken string
+	if noBotan == false {
+		botanToken = os.Getenv("DAMNRU_APPMETRICA_TOKEN")
+		if len(botanToken) == 0 {
+			log.Fatalln("Env variable DAMNRU_APPMETRICA_TOKEN is not set")
+		}
+	}
+
+	botanLogger = botan.New(botanToken)
+
+	log.Printf("Damn service URL: %s\n", serviceUrl)
 
 	bot, err := tb.NewBot(tb.Settings{
 		Token:  os.Getenv("DAMNRU_TELEGRAM_TOKEN"),
@@ -62,10 +77,10 @@ func main() {
 
 	bot.Handle(&moreButton, func(c *tb.Callback) {
 		name := strings.Trim(c.Data, " ")
-		isFemale := false;
+		isFemale := false
 
 		damn := Generate(name, isFemale)
-		logGeneratedDamn(c.Message.Sender, name, isFemale, damn, &botan1)
+		logGeneratedDamn(c.Message.Sender, name, isFemale, damn)
 		sendDamn(bot, c.Sender, damn, moreButton, c.Data)
 
 		bot.Respond(c, &tb.CallbackResponse{})
@@ -77,7 +92,7 @@ func main() {
 		isFemale := true
 
 		damn := Generate(name, isFemale)
-		logGeneratedDamn(c.Message.Sender, name, isFemale, damn, &botan1)
+		logGeneratedDamn(c.Message.Sender, name, isFemale, damn)
 		sendDamn(bot, c.Sender, damn, moreFemaleButton, c.Data)
 
 		bot.Respond(c, &tb.CallbackResponse{})
@@ -94,7 +109,7 @@ func main() {
 		isFemale := true
 
 		damn := Generate(name, isFemale)
-		logGeneratedDamn(message.Sender, name, isFemale, damn, &botan1)
+		logGeneratedDamn(message.Sender, name, isFemale, damn)
 		sendDamn(bot, message.Sender, damn, moreFemaleButton, message.Payload)
 	})
 
@@ -103,7 +118,7 @@ func main() {
 		isFemale := false
 
 		damn := Generate(name, isFemale)
-		logGeneratedDamn(message.Sender, name, isFemale, damn, &botan1)
+		logGeneratedDamn(message.Sender, name, isFemale, damn)
 		sendDamn(bot, message.Sender, damn, moreButton, message.Text)
 	})
 
@@ -120,18 +135,20 @@ func sendDamn(bot *tb.Bot, sender *tb.User, damn string, button tb.InlineButton,
 	})
 }
 
-func logGeneratedDamn(sender *tb.User, name string, isFemale bool, damn string, botan1 *botan.Botan) {
+func logGeneratedDamn(sender *tb.User, name string, isFemale bool, damn string) {
 	log.Println(damn)
 
-	data := BotanDamnData{
-		sender.Username,
-		isFemale,
-		name,
-	}
+	if len(botanLogger.Token) > 0 {
+		data := BotanDamnData{
+			usename: sender.Username,
+			female:  isFemale,
+			name:    name,
+		}
 
-	botan1.TrackAsync(sender.ID, data, "test4", func(ans botan.Answer, err []error) {
-		log.Printf("Event data=%+v, answer=%+v, errors=%+v\n", data, ans, err)
-	})
+		botanLogger.TrackAsync(sender.ID, data, "test4", func(ans botan.Answer, err []error) {
+			log.Printf("Lot to AppMetrica data=%+v, answer=%+v, errors=%+v\n", data, ans, err)
+		})
+	}
 }
 
 func Generate(name string, isFamale bool) string {
