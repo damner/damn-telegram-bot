@@ -30,8 +30,6 @@ var serviceUrl = strings.TrimRight(os.Getenv("DAMNRU_SERVICE_URL"), "/")
 
 var damnRegexp = regexp.MustCompile("\\^.")
 
-var botanCh = make(chan bool)
-
 func main() {
 	log.Printf("Damn service URL: %s\n", serviceUrl)
 
@@ -65,11 +63,9 @@ func main() {
 
 		bot.Edit(c.Message, c.Message.Text)
 
-		sendDamn(bot, c.Sender, damn, moreButton, c.Data)
-
-		bot.Respond(c, &tb.CallbackResponse{})
-
 		logGeneratedDamn(c.Message, damn, &botan1)
+		sendDamn(bot, c.Sender, damn, moreButton, c.Data)
+		bot.Respond(c, &tb.CallbackResponse{})
 	})
 
 	bot.Handle(&moreFemaleButton, func(c *tb.Callback) {
@@ -77,11 +73,9 @@ func main() {
 
 		bot.Edit(c.Message, c.Message.Text)
 
-		sendDamn(bot, c.Sender, damn, moreFemaleButton, c.Data)
-
-		bot.Respond(c, &tb.CallbackResponse{})
-
 		logGeneratedDamn(c.Message, damn, &botan1)
+		sendDamn(bot, c.Sender, damn, moreFemaleButton, c.Data)
+		bot.Respond(c, &tb.CallbackResponse{})
 	})
 
 	bot.Handle("/f", func(message *tb.Message) {
@@ -92,17 +86,15 @@ func main() {
 
 		damn := Generate(strings.Trim(message.Payload, " "), true)
 
-		sendDamn(bot, message.Sender, damn, moreFemaleButton, message.Payload)
-
 		logGeneratedDamn(message, damn, &botan1)
+		sendDamn(bot, message.Sender, damn, moreFemaleButton, message.Payload)
 	})
 
 	bot.Handle(tb.OnText, func(message *tb.Message) {
 		damn := Generate(strings.Trim(message.Text, " "), false)
 
-		sendDamn(bot, message.Sender, damn, moreButton, message.Text)
-
 		logGeneratedDamn(message, damn, &botan1)
+		sendDamn(bot, message.Sender, damn, moreButton, message.Text)
 	})
 
 	bot.Start()
@@ -123,7 +115,6 @@ func logGeneratedDamn(message *tb.Message, damn string, botan1 *botan.Botan) {
 
 	botan1.TrackAsync(message.Sender.ID, BotanMessage{message.Sender.Username}, "test3", func(ans botan.Answer, err []error) {
 		log.Printf("Event [%d] %+v\n", message.Sender.ID, ans)
-		botanCh <- true
 	})
 }
 
