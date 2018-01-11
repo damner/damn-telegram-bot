@@ -9,12 +9,22 @@ import (
 	"strings"
 )
 
+const template string = "$main_obozvat"
+
 type Gender string
 
 const (
 	GenderMale   Gender = "m"
 	GenderFemale Gender = "w"
 )
+
+func (g Gender) Another() Gender {
+	if string(g) == string(GenderMale) {
+		return GenderFemale
+	}
+
+	return GenderMale
+}
 
 // Damn service.
 type Service struct {
@@ -57,8 +67,10 @@ func (s *Service) Generate(name string, gender Gender) *Damn {
 func (s *Service) request(name string, gender Gender) string {
 	values := url.Values{}
 	values.Set("template", template)
-	values.Set("name", name)
+	values.Set("name", strings.Trim(name, " "))
 	values.Set("sex", string(gender))
+
+	log.Println(template)
 
 	resp, err := http.Get(s.URL + "/create?" + values.Encode())
 	if err != nil {
