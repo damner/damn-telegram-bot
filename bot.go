@@ -2,12 +2,8 @@ package main
 
 import (
 	"flag"
-	"io/ioutil"
 	"log"
-	"net/http"
-	"net/url"
 	"os"
-	"regexp"
 	"strings"
 	"time"
 
@@ -25,13 +21,9 @@ const (
 
 type BotanDamnData struct {
 	usename string
-	female  bool
 	name    string
+	gender  Gender
 }
-
-var serviceUrl = strings.TrimRight(os.Getenv("DAMNRU_SERVICE_URL"), "/")
-
-var damnRegexp = regexp.MustCompile("\\^.")
 
 var botanLogger botan.Botan
 
@@ -50,7 +42,9 @@ func main() {
 
 	botanLogger = botan.New(botanToken)
 
-	log.Printf("Damn service URL: %s\n", serviceUrl)
+	url := os.Getenv("DAMNRU_SERVICE_URL")
+	log.Printf("Damn service URL: %s\n", url)
+	service := NewDamnService(url)
 
 	bot, err := tb.NewBot(tb.Settings{
 		Token:  os.Getenv("DAMNRU_TELEGRAM_TOKEN"),
@@ -77,11 +71,11 @@ func main() {
 
 	bot.Handle(&moreButton, func(c *tb.Callback) {
 		name := strings.Trim(c.Data, " ")
-		isFemale := false
+		gender := GenderMale
 
-		damn := Generate(name, isFemale)
-		logGeneratedDamn(c.Message.Sender, name, isFemale, damn)
-		sendDamn(bot, c.Sender, damn, moreButton, c.Data)
+		damn := service.Generate(name, gender)
+		logGeneratedDamn(c.Message.Sender, damn)
+		sendDamn(bot, c.Sender, damn, moreButton)
 
 		bot.Respond(c, &tb.CallbackResponse{})
 		bot.Edit(c.Message, c.Message.Text)
@@ -89,11 +83,11 @@ func main() {
 
 	bot.Handle(&moreFemaleButton, func(c *tb.Callback) {
 		name := strings.Trim(c.Data, " ")
-		isFemale := true
+		gender := GenderFemale
 
-		damn := Generate(name, isFemale)
-		logGeneratedDamn(c.Message.Sender, name, isFemale, damn)
-		sendDamn(bot, c.Sender, damn, moreFemaleButton, c.Data)
+		damn := service.Generate(name, gender)
+		logGeneratedDamn(c.Message.Sender, damn)
+		sendDamn(bot, c.Sender, damn, moreFemaleButton)
 
 		bot.Respond(c, &tb.CallbackResponse{})
 		bot.Edit(c.Message, c.Message.Text)
@@ -106,78 +100,50 @@ func main() {
 		}
 
 		name := strings.Trim(message.Payload, " ")
-		isFemale := true
+		gender := GenderFemale
 
-		damn := Generate(name, isFemale)
-		logGeneratedDamn(message.Sender, name, isFemale, damn)
-		sendDamn(bot, message.Sender, damn, moreFemaleButton, message.Payload)
+		damn := service.Generate(name, gender)
+		logGeneratedDamn(message.Sender, damn)
+		sendDamn(bot, message.Sender, damn, moreFemaleButton)
 	})
 
 	bot.Handle(tb.OnText, func(message *tb.Message) {
 		name := strings.Trim(message.Text, " ")
-		isFemale := false
+		gender := GenderMale
 
-		damn := Generate(name, isFemale)
-		logGeneratedDamn(message.Sender, name, isFemale, damn)
-		sendDamn(bot, message.Sender, damn, moreButton, message.Text)
+		damn := service.Generate(name, gender)
+		logGeneratedDamn(message.Sender, damn)
+		sendDamn(bot, message.Sender, damn, moreButton)
 	})
 
 	bot.Start()
 }
 
-func sendDamn(bot *tb.Bot, sender *tb.User, damn string, button tb.InlineButton, name string) {
-	button.Data = name
+func sendDamn(bot *tb.Bot, sender *tb.User, damn *Damn, button tb.InlineButton) {
+	button.Data = damn.Name
 
-	bot.Send(sender, damn, &tb.ReplyMarkup{
+	bot.Send(sender, damn.Result, &tb.ReplyMarkup{
 		InlineKeyboard: [][]tb.InlineButton{
-			[]tb.InlineButton{button},
+			[]tb.InlineButton{
+				button,
+				button,
+			},
 		},
 	})
 }
 
-func logGeneratedDamn(sender *tb.User, name string, isFemale bool, damn string) {
-	log.Println(damn)
+func logGeneratedDamn(sender *tb.User, damn *Damn) {
+	log.Println(damn.Result)
 
 	if len(botanLogger.Token) > 0 {
 		data := BotanDamnData{
 			usename: sender.Username,
-			female:  isFemale,
-			name:    name,
+			name:    damn.Name,
+			gender:  damn.Gender,
 		}
 
 		botanLogger.TrackAsync(sender.ID, data, "test4", func(ans botan.Answer, err []error) {
 			log.Printf("Lot to AppMetrica data=%+v, answer=%+v, errors=%+v\n", data, ans, err)
 		})
 	}
-}
-
-func Generate(name string, isFamale bool) string {
-	values := url.Values{}
-	values.Set("template", template)
-	values.Set("name", "{NAME}")
-	values.Set("sex", "m")
-
-	if isFamale {
-		values.Set("sex", "w")
-	}
-
-	resp, err := http.Get(serviceUrl + "/create?" + values.Encode())
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	defer resp.Body.Close()
-
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	damn := string(body)
-	damn = strings.Replace(damn, "{NAME}", name, -1)
-	damn = damnRegexp.ReplaceAllStringFunc(damn, func(m string) string {
-		return strings.ToUpper(m[1:])
-	})
-
-	return damn
 }
