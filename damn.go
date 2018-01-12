@@ -67,7 +67,7 @@ func (s *Service) Generate(name string, gender Gender) *Damn {
 func (s *Service) request(name string, gender Gender) string {
 	values := url.Values{}
 	values.Set("template", template)
-	values.Set("name", strings.Trim(name, " "))
+	values.Set("name", strings.TrimSpace(name))
 	values.Set("sex", string(gender))
 
 	log.Println(template)
