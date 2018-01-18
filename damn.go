@@ -70,8 +70,6 @@ func (s *Service) request(name string, gender Gender) string {
 	values.Set("name", strings.TrimSpace(name))
 	values.Set("sex", string(gender))
 
-	log.Println(template)
-
 	resp, err := http.Get(s.URL + "/create?" + values.Encode())
 	if err != nil {
 		log.Fatalln(err)
