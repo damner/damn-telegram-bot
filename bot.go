@@ -16,12 +16,6 @@ const (
 	buttonChangeGenderText = "Сменить пол"
 )
 
-type BotanDamnData struct {
-	usename string
-	name    string
-	gender  Gender
-}
-
 var botanLogger botan.Botan
 
 var buttons struct {
@@ -70,11 +64,21 @@ func main() {
 
 	bot.Handle("/start", func(message *tb.Message) {
 		bot.Send(message.Sender, messageStart)
+
+		logEvent(message.Sender, "start", struct{}{})
 	})
 
 	bot.Handle(&buttons.more, func(c *tb.Callback) {
 		name := c.Data[1:]
 		gender := Gender(c.Data[0:1])
+
+		logEvent(c.Sender, "button-more", struct {
+			name   string
+			gender Gender
+		}{
+			name:   name,
+			gender: gender,
+		})
 
 		responseWithDamn(bot, c.Sender, name, gender)
 
@@ -86,6 +90,14 @@ func main() {
 		name := c.Data[1:]
 		gender := Gender(c.Data[0:1])
 
+		logEvent(c.Sender, "button-change-gender", struct {
+			name   string
+			gender Gender
+		}{
+			name:   name,
+			gender: gender,
+		})
+
 		responseWithDamn(bot, c.Sender, name, gender.Another())
 
 		bot.Respond(c, &tb.CallbackResponse{})
@@ -93,6 +105,12 @@ func main() {
 	})
 
 	bot.Handle(tb.OnText, func(message *tb.Message) {
+		logEvent(message.Sender, "text", struct {
+			name string
+		}{
+			name: message.Text,
+		})
+
 		responseWithDamn(bot, message.Sender, message.Text, GenderMale)
 	})
 
@@ -102,7 +120,14 @@ func main() {
 func responseWithDamn(bot *tb.Bot, user *tb.User, name string, gender Gender) {
 	damn := service.Generate(name, gender)
 	sendDamn(bot, user, damn)
-	logDamn(user, damn)
+
+	logEvent(user, "damn", struct {
+		name   string
+		gender Gender
+	}{
+		name:   damn.Name,
+		gender: damn.Gender,
+	})
 }
 
 func sendDamn(bot *tb.Bot, user *tb.User, damn *Damn) {
@@ -119,18 +144,12 @@ func sendDamn(bot *tb.Bot, user *tb.User, damn *Damn) {
 	})
 }
 
-func logDamn(user *tb.User, damn *Damn) {
-	log.Printf("UID: %d, Username: %s, Result: %s\n", user.ID, user.Username, damn.Result)
+func logEvent(user *tb.User, name string, values interface{}) {
+	log.Printf("%v %v %+v\n", user.ID, name, values)
 
 	if len(botanLogger.Token) > 0 {
-		data := BotanDamnData{
-			usename: user.Username,
-			name:    damn.Name,
-			gender:  damn.Gender,
-		}
-
-		botanLogger.TrackAsync(user.ID, data, "test4", func(ans botan.Answer, err []error) {
-			log.Printf("Lot to AppMetrica data=%+v, answer=%+v, errors=%+v\n", data, ans, err)
+		botanLogger.TrackAsync(user.ID, values, name, func(ans botan.Answer, err []error) {
+			log.Printf("Log to AppMetrica userID=%v, name=%v, values=%+v, answer=%+v, errors=%+v\n", user.ID, name, values, ans, err)
 		})
 	}
 }
