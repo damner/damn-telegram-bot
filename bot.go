@@ -4,9 +4,11 @@ import (
 	"flag"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/botanio/sdk/go"
+	"github.com/opennota/morph"
 	tb "gopkg.in/tucnak/telebot.v2"
 )
 
@@ -111,10 +113,26 @@ func main() {
 			name: message.Text,
 		})
 
-		responseWithDamn(bot, message.Sender, message.Text, GenderMale)
+		gender := getGender(message.Text)
+
+		responseWithDamn(bot, message.Sender, message.Text, gender)
 	})
 
 	bot.Start()
+}
+
+func getGender(name string) Gender {
+	gender := GenderMale
+
+	_, _, tags := morph.Parse(strings.ToLower(name))
+
+	if len(tags) > 0 {
+		if strings.Contains(tags[0], "femn") {
+			gender = GenderFemale
+		}
+	}
+
+	return gender
 }
 
 func responseWithDamn(bot *tb.Bot, user *tb.User, name string, gender Gender) {
